@@ -20,6 +20,7 @@ const InfiniteCanvas = () => {
     const [textAreaPosition, setTextAreaPosition] = useState({ x: 0, y: 0 });
     const [selectionBox, setSelectionBox] = useState(null); // { x1, y1, x2, y2 }
     const [isPanning, setIsPanning] = useState(false);
+    const [isSpacePressed, setIsSpacePressed] = useState(false);
 
     useEffect(() => {
         if (contentLayerRef.current) {
@@ -89,10 +90,28 @@ const InfiniteCanvas = () => {
                     }
                 });
             }
+
+            // Spacebar for panning
+            if (e.key === ' ' && !isTyping && !isSpacePressed) {
+                setIsSpacePressed(true);
+                e.preventDefault();
+            }
         };
+
+        const handleKeyUp = (e) => {
+            if (e.key === ' ') {
+                setIsSpacePressed(false);
+                setIsPanning(false);
+            }
+        };
+
         window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [selectedIds, removeItem, editingItem, undo, redo, items, updateItem]);
+        window.addEventListener('keyup', handleKeyUp);
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+            window.removeEventListener('keyup', handleKeyUp);
+        };
+    }, [selectedIds, removeItem, editingItem, undo, redo, items, updateItem, isSpacePressed]);
 
     // Handle styling for inline text area
     useEffect(() => {
@@ -296,14 +315,14 @@ const InfiniteCanvas = () => {
     const handleStageMouseDown = (e) => {
         const stage = stageRef.current;
 
-        // Right-click starts panning
-        if (e.evt.button === 2) {
+        // Right-click or Spacebar+click starts panning
+        if (e.evt.button === 2 || (isSpacePressed && e.evt.button === 0)) {
             setIsPanning(true);
             return;
         }
 
-        // Only handle left-click for selection
-        if (e.target === stage && activeTool === 'pointer' && e.evt.button === 0) {
+        // Only handle left-click for selection (when space isn't pressed)
+        if (e.target === stage && activeTool === 'pointer' && e.evt.button === 0 && !isSpacePressed) {
             selectItem(null); // Deselect all
             setEditingItem(null);
 
