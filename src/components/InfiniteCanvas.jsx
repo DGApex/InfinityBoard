@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { Stage, Layer, Rect, Circle, Group, Text, Image as KonvaImage, Transformer } from 'react-konva';
 import Konva from 'konva';
 import useStore from '../store/useStore';
@@ -20,7 +20,10 @@ const InfiniteCanvas = () => {
     const [textAreaPosition, setTextAreaPosition] = useState({ x: 0, y: 0 });
     const [selectionBox, setSelectionBox] = useState(null); // { x1, y1, x2, y2 }
     const [isPanning, setIsPanning] = useState(false);
-    const [isSpacePressed, setIsSpacePressed] = useState(false);
+
+    // Use ref for spacebar to avoid re-renders
+    const isSpacePressedRef = useRef(false);
+    const containerRef = useRef(null);
 
     useEffect(() => {
         if (contentLayerRef.current) {
@@ -97,17 +100,23 @@ const InfiniteCanvas = () => {
                 });
             }
 
-            // Spacebar for panning
-            if (e.code === 'Space' && !isTyping && !isSpacePressed) {
-                setIsSpacePressed(true);
+            // Spacebar for panning - using ref for instant response
+            if (e.code === 'Space' && !isTyping && !isSpacePressedRef.current) {
+                isSpacePressedRef.current = true;
+                if (containerRef.current) {
+                    containerRef.current.style.cursor = 'grab';
+                }
                 e.preventDefault();
             }
         };
 
         const handleKeyUp = (e) => {
             if (e.code === 'Space') {
-                setIsSpacePressed(false);
-                setIsPanning(false); // Stop panning when space is released
+                isSpacePressedRef.current = false;
+                setIsPanning(false);
+                if (containerRef.current) {
+                    containerRef.current.style.cursor = 'default';
+                }
             }
         };
 
@@ -117,7 +126,7 @@ const InfiniteCanvas = () => {
             window.removeEventListener('keydown', handleKeyDown);
             window.removeEventListener('keyup', handleKeyUp);
         };
-    }, [selectedIds, removeItem, editingItem, undo, redo, items, updateItem, isSpacePressed]);
+    }, [selectedIds, removeItem, editingItem, undo, redo, items, updateItem]);
 
     // Handle styling for inline text area
     useEffect(() => {
@@ -317,18 +326,21 @@ const InfiniteCanvas = () => {
         });
     };
 
-    // Tool Interaction
-    const handleStageMouseDown = (e) => {
+    // Tool Interaction - optimized with useCallback
+    const handleStageMouseDown = useCallback((e) => {
         const stage = stageRef.current;
 
         // Right-click or Spacebar+click starts panning
-        if (e.evt.button === 2 || (isSpacePressed && e.evt.button === 0)) {
+        if (e.evt.button === 2 || (isSpacePressedRef.current && e.evt.button === 0)) {
             setIsPanning(true);
+            if (containerRef.current) {
+                containerRef.current.style.cursor = 'grabbing';
+            }
             return;
         }
 
         // Only handle left-click for selection (when space isn't pressed)
-        if (e.target === stage && activeTool === 'pointer' && e.evt.button === 0 && !isSpacePressed) {
+        if (e.target === stage && activeTool === 'pointer' && e.evt.button === 0 && !isSpacePressedRef.current) {
             selectItem(null); // Deselect all
             setEditingItem(null);
 
@@ -340,12 +352,11 @@ const InfiniteCanvas = () => {
             };
             setSelectionBox({ x1: point.x, y1: point.y, x2: point.x, y2: point.y });
         }
-    };
+    }, [activeTool, selectItem, setEditingItem]);
 
     const handleStageMouseMove = (e) => {
         if (!selectionBox) return;
 
-        const stage = stageRef.current;
         const pos = stage.getPointerPosition();
         const point = {
             x: (pos.x - stage.x()) / stage.scaleX(),
@@ -725,10 +736,10 @@ const InfiniteCanvas = () => {
             })()}
 
             <div
+                ref={containerRef}
                 className="w-full h-screen"
                 onDragOver={handleDragOver}
                 onDrop={handleDrop}
-                style={{ cursor: isSpacePressed ? 'grab' : isPanning ? 'grabbing' : 'default' }}
             >
                 <Stage
                     width={stageSize.width}
@@ -804,8 +815,9 @@ const InfiniteCanvas = () => {
                         </Layer>
                     )}
                 </Stage>
-            </div >
-            );
+            </div>
+        </div>
+    );
 };
 
-            export default InfiniteCanvas;
+export default InfiniteCanvas;
