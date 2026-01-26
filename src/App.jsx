@@ -2,6 +2,7 @@ import React from 'react';
 import InfiniteCanvas from './components/InfiniteCanvas';
 import Toolbar from './components/Toolbar';
 import PropertiesPanel from './components/PropertiesPanel';
+import StatusBar from './components/StatusBar';
 
 function App() {
     return (
@@ -9,6 +10,7 @@ function App() {
             <Toolbar />
             <PropertiesPanel />
             <InfiniteCanvas />
+            <StatusBar />
         </div>
     );
 }

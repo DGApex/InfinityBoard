@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import useStore from '../store/useStore';
 
 const Toolbar = () => {
-    const { saveBoard, loadBoard, activeTool, setTool } = useStore();
+    const { saveBoard, loadBoard, exportBoard, activeTool, setTool } = useStore();
 
     return (
         <div
@@ -45,7 +45,7 @@ const Toolbar = () => {
             <div className="flex flex-col gap-2">
                 <ToolButton onClick={saveBoard} title="Save Board" icon={<Save size={20} />} />
                 <ToolButton onClick={loadBoard} title="Load Board" icon={<FolderOpen size={20} />} />
-                <ToolButton onClick={useStore(state => state.exportBoard)} title="Export as Image" icon={<Image size={20} />} />
+                <ToolButton onClick={exportBoard} title="Export as Image" icon={<Image size={20} />} />
             </div>
         </div>
     );

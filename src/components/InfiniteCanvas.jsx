@@ -12,7 +12,7 @@ const InfiniteCanvas = () => {
         scale, position, setScale, setPosition,
         stageSize, setStageSize, setContentLayerRef,
         items, addItem, updateItem, removeItem, activeTool, setTool,
-        selectedId, selectItem
+        selectedId, selectItem, undo, redo
     } = useStore();
 
     const [images, setImages] = useState({});
@@ -41,18 +41,35 @@ const InfiniteCanvas = () => {
         }
     }, [selectedId, items]);
 
-    // Keyboard Deletion
+    // Keyboard shortcuts (Delete, Undo, Redo)
     useEffect(() => {
         const handleKeyDown = (e) => {
-            if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId && !editingItem) {
-                if (document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
-                    removeItem(selectedId);
-                }
+            // Skip if user is typing in input/textarea
+            const isTyping = document.activeElement.tagName === 'INPUT' ||
+                document.activeElement.tagName === 'TEXTAREA';
+
+            // Undo: Ctrl+Z (not Shift)
+            if (e.ctrlKey && e.key === 'z' && !e.shiftKey) {
+                e.preventDefault();
+                undo();
+                return;
+            }
+
+            // Redo: Ctrl+Shift+Z
+            if (e.ctrlKey && e.shiftKey && e.key === 'Z') {
+                e.preventDefault();
+                redo();
+                return;
+            }
+
+            // Delete selected item
+            if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId && !editingItem && !isTyping) {
+                removeItem(selectedId);
             }
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [selectedId, removeItem, editingItem]);
+    }, [selectedId, removeItem, editingItem, undo, redo]);
 
     // Handle styling for inline text area
     useEffect(() => {
@@ -253,6 +270,7 @@ const InfiniteCanvas = () => {
                     content: 'Double click to edit',
                     fontSize: 20,
                     fill: '#ffffff',
+                    width: 200, // Default width for text wrapping
                 });
                 setTool('pointer');
                 selectItem(newId);
@@ -373,13 +391,26 @@ const InfiniteCanvas = () => {
             onDragEnd: (e) => { updateItem(item.id, { x: e.target.x(), y: e.target.y() }); },
             onTransformEnd: (e) => {
                 const node = e.target;
-                updateItem(item.id, {
+                const updates = {
                     x: node.x(),
                     y: node.y(),
                     rotation: node.rotation(),
-                    scaleX: node.scaleX(),
-                    scaleY: node.scaleY(),
-                });
+                };
+
+                // For text objects, update width based on scale instead of applying scale
+                if (item.type === 'text') {
+                    const newWidth = Math.max(50, node.width() * node.scaleX());
+                    updates.width = newWidth;
+                    // Reset scale to 1 after applying it to width
+                    node.scaleX(1);
+                    node.scaleY(1);
+                } else {
+                    // For other objects, keep scale
+                    updates.scaleX = node.scaleX();
+                    updates.scaleY = node.scaleY();
+                }
+
+                updateItem(item.id, updates);
             }
         };
 
@@ -415,6 +446,8 @@ const InfiniteCanvas = () => {
                     text={item.content}
                     fontSize={item.fontSize}
                     fill={item.fill}
+                    width={item.width || 200}
+                    wrap="word"
                     onDblClick={() => {
                         setEditingItem(item.id);
                     }}
