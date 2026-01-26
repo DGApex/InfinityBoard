@@ -104,6 +104,7 @@ const InfiniteCanvas = () => {
             // Spacebar for panning - using ref for instant response
             if (e.code === 'Space' && !isTyping && !isSpacePressedRef.current) {
                 isSpacePressedRef.current = true;
+                setIsPanning(true); // Make Stage draggable immediately
                 if (containerRef.current) {
                     containerRef.current.style.cursor = 'grab';
                 }
@@ -333,7 +334,7 @@ const InfiniteCanvas = () => {
 
         // Right-click or Spacebar+click starts panning
         if (e.evt.button === 2 || (isSpacePressedRef.current && e.evt.button === 0)) {
-            setIsPanning(true);
+            // Change cursor to grabbing when starting to drag
             if (containerRef.current) {
                 containerRef.current.style.cursor = 'grabbing';
             }
@@ -511,379 +512,378 @@ const InfiniteCanvas = () => {
             }
             // Other tools don't use click anymore (only drag)
         }
-    }
-};
-
-const handleWheel = (e) => {
-    e.evt.preventDefault();
-    const stage = stageRef.current;
-    if (!stage) return;
-
-    const scaleBy = 1.1;
-    const oldScale = stage.scaleX();
-    const pointer = stage.getPointerPosition();
-
-    if (!pointer) return;
-
-    const mousePointTo = {
-        x: (pointer.x - stage.x()) / oldScale,
-        y: (pointer.y - stage.y()) / oldScale,
     };
 
-    const newScale = e.evt.deltaY > 0 ? oldScale / scaleBy : oldScale * scaleBy;
+    const handleWheel = (e) => {
+        e.evt.preventDefault();
+        const stage = stageRef.current;
+        if (!stage) return;
 
-    const newPos = {
-        x: pointer.x - mousePointTo.x * newScale,
-        y: pointer.y - mousePointTo.y * newScale,
+        const scaleBy = 1.1;
+        const oldScale = stage.scaleX();
+        const pointer = stage.getPointerPosition();
+
+        if (!pointer) return;
+
+        const mousePointTo = {
+            x: (pointer.x - stage.x()) / oldScale,
+            y: (pointer.y - stage.y()) / oldScale,
+        };
+
+        const newScale = e.evt.deltaY > 0 ? oldScale / scaleBy : oldScale * scaleBy;
+
+        const newPos = {
+            x: pointer.x - mousePointTo.x * newScale,
+            y: pointer.y - mousePointTo.y * newScale,
+        };
+
+        setScale(newScale);
+        setPosition(newPos);
     };
 
-    setScale(newScale);
-    setPosition(newPos);
-};
-
-const handleDragEnd = (e) => {
-    if (e.target === stageRef.current) {
-        setPosition({
-            x: e.target.x(),
-            y: e.target.y(),
-        });
-    }
-};
-
-// Rendering Helpers
-const renderItem = (item) => {
-    if (editingItem === item.id) {
-        if (item.type === 'text') return null; // Hide text only
-        // For sticky, we want to show the colored rect but hide the text
-    }
-
-    const draggable = activeTool === 'pointer';
-
-    const commonProps = {
-        key: item.id,
-        id: item.id,
-        name: item.id,
-        x: item.x,
-        y: item.y,
-        draggable: draggable,
-        rotation: item.rotation || 0,
-        scaleX: item.scaleX || 1,
-        scaleY: item.scaleY || 1,
-        onClick: (e) => {
-            if (activeTool === 'pointer') {
-                selectItem(item.id, e.evt?.shiftKey || false);
-                e.cancelBubble = true;
-            }
-        },
-        onTap: (e) => { if (activeTool === 'pointer') { selectItem(item.id, e.evt?.shiftKey || false); e.cancelBubble = true; } },
-        onDragStart: (e) => {
-            if (!selectedIds.includes(item.id)) selectItem(item.id);
-            e.cancelBubble = true;
-        },
-        onDragEnd: (e) => { updateItem(item.id, { x: e.target.x(), y: e.target.y() }); },
-        onTransformEnd: (e) => {
-            const node = e.target;
-            const updates = {
-                x: node.x(),
-                y: node.y(),
-                rotation: node.rotation(),
-            };
-
-            // For text objects, update width based on scale instead of applying scale
-            if (item.type === 'text') {
-                const newWidth = Math.max(50, node.width() * node.scaleX());
-                updates.width = newWidth;
-                // Reset scale to 1 after applying it to width
-                node.scaleX(1);
-                node.scaleY(1);
-            } else {
-                // For other objects, keep scale
-                updates.scaleX = node.scaleX();
-                updates.scaleY = node.scaleY();
-            }
-
-            updateItem(item.id, updates);
+    const handleDragEnd = (e) => {
+        if (e.target === stageRef.current) {
+            setPosition({
+                x: e.target.x(),
+                y: e.target.y(),
+            });
         }
     };
 
-    if (item.type === 'video') { /* ... */
-        return (
-            <VideoItem
-                key={item.id}
-                item={item}
-                updateItem={updateItem}
-                activeTool={activeTool}
-                onClick={commonProps.onClick}
-                onDragStart={commonProps.onDragStart}
-                onDragEnd={commonProps.onDragEnd}
-            />
-        );
-    }
+    // Rendering Helpers
+    const renderItem = (item) => {
+        if (editingItem === item.id) {
+            if (item.type === 'text') return null; // Hide text only
+            // For sticky, we want to show the colored rect but hide the text
+        }
 
-    if (item.type === 'image') {
-        return (
-            <KonvaImage
-                {...commonProps}
-                image={images[item.content]}
-                width={item.width}
-                height={item.height}
-            />
-        );
-    }
+        const draggable = activeTool === 'pointer';
 
-    if (item.type === 'text') {
-        return (
-            <Text
-                {...commonProps}
-                text={item.content}
-                fontSize={item.fontSize}
-                fill={item.fill}
-                width={item.width || 200}
-                wrap="word"
-                onDblClick={() => {
-                    setEditingItem(item.id);
-                }}
-            />
-        );
-    }
+        const commonProps = {
+            key: item.id,
+            id: item.id,
+            name: item.id,
+            x: item.x,
+            y: item.y,
+            draggable: draggable,
+            rotation: item.rotation || 0,
+            scaleX: item.scaleX || 1,
+            scaleY: item.scaleY || 1,
+            onClick: (e) => {
+                if (activeTool === 'pointer') {
+                    selectItem(item.id, e.evt?.shiftKey || false);
+                    e.cancelBubble = true;
+                }
+            },
+            onTap: (e) => { if (activeTool === 'pointer') { selectItem(item.id, e.evt?.shiftKey || false); e.cancelBubble = true; } },
+            onDragStart: (e) => {
+                if (!selectedIds.includes(item.id)) selectItem(item.id);
+                e.cancelBubble = true;
+            },
+            onDragEnd: (e) => { updateItem(item.id, { x: e.target.x(), y: e.target.y() }); },
+            onTransformEnd: (e) => {
+                const node = e.target;
+                const updates = {
+                    x: node.x(),
+                    y: node.y(),
+                    rotation: node.rotation(),
+                };
 
-    if (item.type === 'sticky') {
-        return (
-            <Group {...commonProps}>
-                <Rect
+                // For text objects, update width based on scale instead of applying scale
+                if (item.type === 'text') {
+                    const newWidth = Math.max(50, node.width() * node.scaleX());
+                    updates.width = newWidth;
+                    // Reset scale to 1 after applying it to width
+                    node.scaleX(1);
+                    node.scaleY(1);
+                } else {
+                    // For other objects, keep scale
+                    updates.scaleX = node.scaleX();
+                    updates.scaleY = node.scaleY();
+                }
+
+                updateItem(item.id, updates);
+            }
+        };
+
+        if (item.type === 'video') { /* ... */
+            return (
+                <VideoItem
+                    key={item.id}
+                    item={item}
+                    updateItem={updateItem}
+                    activeTool={activeTool}
+                    onClick={commonProps.onClick}
+                    onDragStart={commonProps.onDragStart}
+                    onDragEnd={commonProps.onDragEnd}
+                />
+            );
+        }
+
+        if (item.type === 'image') {
+            return (
+                <KonvaImage
+                    {...commonProps}
+                    image={images[item.content]}
                     width={item.width}
                     height={item.height}
-                    fill={item.color}
-                    shadowBlur={10}
-                    shadowColor="rgba(0,0,0,0.2)"
                 />
-                {editingItem !== item.id && (
-                    <Text
-                        x={10}
-                        y={10}
-                        width={item.width - 20}
-                        height={item.height - 20}
-                        text={item.content}
-                        fontSize={16}
-                        fill="#333"
-                        fontFamily="sans-serif"
-                        onDblClick={() => setEditingItem(item.id)}
-                    />
-                )}
-            </Group>
-        );
-    }
+            );
+        }
 
-    if (item.type === 'rect') {
-        return (
-            <Rect
-                {...commonProps}
-                width={item.width}
-                height={item.height}
-                fill={item.fill}
-                stroke={item.stroke}
-                strokeWidth={item.strokeWidth}
-            />
-        );
-    }
-
-    if (item.type === 'circle') {
-        return (
-            <Circle
-                {...commonProps}
-                // Circle radius logic with transformer
-                radius={item.radius || 50}
-                // When transforming a circle, scaleX/scaleY changes.
-                // We can just rely on scale for ellipse effect or keep it perfect circle.
-                fill={item.fill}
-                stroke={item.stroke}
-                strokeWidth={item.strokeWidth}
-            />
-        );
-    }
-
-    return null;
-};
-
-const Grid = () => (
-    <Group>
-        {Array.from({ length: 100 }).map((_, i) => (
-            <React.Fragment key={i}>
-                <Rect x={(i - 50) * 100} y={-5000} width={1} height={10000} fill="#3d3d3d" listening={false} />
-                <Rect x={-5000} y={(i - 50) * 100} width={10000} height={1} fill="#3d3d3d" listening={false} />
-            </React.Fragment>
-        ))}
-    </Group>
-);
-
-return (
-    <div
-        onDrop={handleDrop}
-        onDragOver={handleDragOver}
-        className="w-full h-full relative"
-    >
-        {editingItem && (() => {
-            const item = items.find(i => i.id === editingItem);
-            if (!item || (item.type !== 'text' && item.type !== 'sticky')) return null;
-
-            const isSticky = item.type === 'sticky';
-
+        if (item.type === 'text') {
             return (
-                <textarea
-                    value={item.content}
-                    onChange={(e) => updateItem(item.id, { content: e.target.value })}
-                    onBlur={() => setEditingItem(null)}
-                    onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) { // Shift+Enter for newline
-                            setEditingItem(null);
-                        }
-                    }}
-                    autoFocus
-                    style={{
-                        position: 'absolute',
-                        top: textAreaPosition.y + (isSticky ? 10 * scale : 0),
-                        left: textAreaPosition.x + (isSticky ? 10 * scale : 0),
-                        width: isSticky ? (item.width - 20) * scale : undefined,
-                        height: isSticky ? (item.height - 20) * scale : undefined,
-                        fontSize: `${(item.fontSize || 16) * scale}px`,
-                        color: isSticky ? '#333' : textAreaPosition.color,
-                        border: '1px dashed #FF6B00',
-                        padding: '0px',
-                        margin: '-1px',
-                        background: 'transparent',
-                        outline: 'none',
-                        resize: 'none',
-                        overflow: 'hidden',
-                        whiteSpace: 'pre-wrap', // Wrap for stickies
-                        zIndex: 100,
+                <Text
+                    {...commonProps}
+                    text={item.content}
+                    fontSize={item.fontSize}
+                    fill={item.fill}
+                    width={item.width || 200}
+                    wrap="word"
+                    onDblClick={() => {
+                        setEditingItem(item.id);
                     }}
                 />
             );
-        })()}
+        }
 
-        <div
-            ref={containerRef}
-            className="w-full h-screen"
-            onDragOver={handleDragOver}
-            onDrop={handleDrop}
-        >
-            <Stage
-                width={stageSize.width}
-                height={stageSize.height}
-                onWheel={handleWheel}
-                draggable={isPanning}
-                onDragEnd={handleDragEnd}
-                onMouseDown={handleStageMouseDown}
-                onMouseMove={handleStageMouseMove}
-                onMouseUp={handleStageMouseUp}
-                onClick={handleStageClick}
-                onTap={handleStageClick}
-                onContextMenu={(e) => e.evt.preventDefault()} // Prevent context menu
-                scaleX={scale}
-                scaleY={scale}
-                x={position.x}
-                y={position.y}
-                ref={stageRef}
-            >
-                <Layer>
-                    <Grid />
-                </Layer>
-
-                <Layer ref={contentLayerRef}>
-                    {items.map(renderItem)}
-                    <Transformer
-                        ref={transformerRef}
-                        borderStroke="#FF6B00"
-                        anchorStroke="#FF6B00"
-                        anchorFill="#18181b"
-                        anchorSize={10}
-                        borderDash={[4, 4]}
+        if (item.type === 'sticky') {
+            return (
+                <Group {...commonProps}>
+                    <Rect
+                        width={item.width}
+                        height={item.height}
+                        fill={item.color}
+                        shadowBlur={10}
+                        shadowColor="rgba(0,0,0,0.2)"
                     />
-
-                    {/* Selection Box Visual */}
-                    {selectionBox && (
-                        <Rect
-                            x={Math.min(selectionBox.x1, selectionBox.x2)}
-                            y={Math.min(selectionBox.y1, selectionBox.y2)}
-                            width={Math.abs(selectionBox.x2 - selectionBox.x1)}
-                            height={Math.abs(selectionBox.y2 - selectionBox.y1)}
-                            fill="rgba(255, 107, 0, 0.1)"
-                            stroke="#FF6B00"
-                            strokeWidth={2}
-                            dash={[4, 4]}
-                            listening={false}
+                    {editingItem !== item.id && (
+                        <Text
+                            x={10}
+                            y={10}
+                            width={item.width - 20}
+                            height={item.height - 20}
+                            text={item.content}
+                            fontSize={16}
+                            fill="#333"
+                            fontFamily="sans-serif"
+                            onDblClick={() => setEditingItem(item.id)}
                         />
                     )}
+                </Group>
+            );
+        }
 
-                    {/* Creating Shape Preview */}
-                    {creatingShape && (() => {
-                        const { type, x1, y1, x2, y2 } = creatingShape;
-                        const x = Math.min(x1, x2);
-                        const y = Math.min(y1, y2);
-                        const width = Math.abs(x2 - x1);
-                        const height = Math.abs(y2 - y1);
+        if (item.type === 'rect') {
+            return (
+                <Rect
+                    {...commonProps}
+                    width={item.width}
+                    height={item.height}
+                    fill={item.fill}
+                    stroke={item.stroke}
+                    strokeWidth={item.strokeWidth}
+                />
+            );
+        }
 
-                        if (type === 'rect' || type === 'text' || type === 'sticky') {
-                            return (
-                                <Rect
-                                    x={x}
-                                    y={y}
-                                    width={width}
-                                    height={height}
-                                    fill="rgba(255, 107, 0, 0.05)"
-                                    stroke="#FF6B00"
-                                    strokeWidth={2}
-                                    dash={[8, 8]}
-                                    listening={false}
-                                />
-                            );
-                        } else if (type === 'circle') {
-                            const radius = Math.min(width, height) / 2;
-                            return (
-                                <Circle
-                                    x={x + radius}
-                                    y={y + radius}
-                                    radius={radius}
-                                    fill="rgba(255, 107, 0, 0.05)"
-                                    stroke="#FF6B00"
-                                    strokeWidth={2}
-                                    dash={[8, 8]}
-                                    listening={false}
-                                />
-                            );
-                        }
-                        return null;
-                    })()}
-                </Layer>
+        if (item.type === 'circle') {
+            return (
+                <Circle
+                    {...commonProps}
+                    // Circle radius logic with transformer
+                    radius={item.radius || 50}
+                    // When transforming a circle, scaleX/scaleY changes.
+                    // We can just rely on scale for ellipse effect or keep it perfect circle.
+                    fill={item.fill}
+                    stroke={item.stroke}
+                    strokeWidth={item.strokeWidth}
+                />
+            );
+        }
 
-                {items.length === 0 && (
+        return null;
+    };
+
+    const Grid = () => (
+        <Group>
+            {Array.from({ length: 100 }).map((_, i) => (
+                <React.Fragment key={i}>
+                    <Rect x={(i - 50) * 100} y={-5000} width={1} height={10000} fill="#3d3d3d" listening={false} />
+                    <Rect x={-5000} y={(i - 50) * 100} width={10000} height={1} fill="#3d3d3d" listening={false} />
+                </React.Fragment>
+            ))}
+        </Group>
+    );
+
+    return (
+        <div
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            className="w-full h-full relative"
+        >
+            {editingItem && (() => {
+                const item = items.find(i => i.id === editingItem);
+                if (!item || (item.type !== 'text' && item.type !== 'sticky')) return null;
+
+                const isSticky = item.type === 'sticky';
+
+                return (
+                    <textarea
+                        value={item.content}
+                        onChange={(e) => updateItem(item.id, { content: e.target.value })}
+                        onBlur={() => setEditingItem(null)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) { // Shift+Enter for newline
+                                setEditingItem(null);
+                            }
+                        }}
+                        autoFocus
+                        style={{
+                            position: 'absolute',
+                            top: textAreaPosition.y + (isSticky ? 10 * scale : 0),
+                            left: textAreaPosition.x + (isSticky ? 10 * scale : 0),
+                            width: isSticky ? (item.width - 20) * scale : undefined,
+                            height: isSticky ? (item.height - 20) * scale : undefined,
+                            fontSize: `${(item.fontSize || 16) * scale}px`,
+                            color: isSticky ? '#333' : textAreaPosition.color,
+                            border: '1px dashed #FF6B00',
+                            padding: '0px',
+                            margin: '-1px',
+                            background: 'transparent',
+                            outline: 'none',
+                            resize: 'none',
+                            overflow: 'hidden',
+                            whiteSpace: 'pre-wrap', // Wrap for stickies
+                            zIndex: 100,
+                        }}
+                    />
+                );
+            })()}
+
+            <div
+                ref={containerRef}
+                className="w-full h-screen"
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
+            >
+                <Stage
+                    width={stageSize.width}
+                    height={stageSize.height}
+                    onWheel={handleWheel}
+                    draggable={isPanning}
+                    onDragEnd={handleDragEnd}
+                    onMouseDown={handleStageMouseDown}
+                    onMouseMove={handleStageMouseMove}
+                    onMouseUp={handleStageMouseUp}
+                    onClick={handleStageClick}
+                    onTap={handleStageClick}
+                    onContextMenu={(e) => e.evt.preventDefault()} // Prevent context menu
+                    scaleX={scale}
+                    scaleY={scale}
+                    x={position.x}
+                    y={position.y}
+                    ref={stageRef}
+                >
                     <Layer>
-                        <Group>
-                            <Rect
-                                x={stageSize.width / 2 - 200}
-                                y={stageSize.height / 2 - 50}
-                                width={400}
-                                height={100}
-                                fill="transparent"
-                                listening={false}
-                            />
-                            <Text
-                                x={stageSize.width / 2 - 300}
-                                y={stageSize.height / 2 + 30}
-                                width={600}
-                                align="center"
-                                text="Drag & Drop images or videos to start"
-                                fontSize={24}
-                                fill="#666"
-                                listening={false}
-                            />
-                        </Group>
+                        <Grid />
                     </Layer>
-                )}
-            </Stage>
+
+                    <Layer ref={contentLayerRef}>
+                        {items.map(renderItem)}
+                        <Transformer
+                            ref={transformerRef}
+                            borderStroke="#FF6B00"
+                            anchorStroke="#FF6B00"
+                            anchorFill="#18181b"
+                            anchorSize={10}
+                            borderDash={[4, 4]}
+                        />
+
+                        {/* Selection Box Visual */}
+                        {selectionBox && (
+                            <Rect
+                                x={Math.min(selectionBox.x1, selectionBox.x2)}
+                                y={Math.min(selectionBox.y1, selectionBox.y2)}
+                                width={Math.abs(selectionBox.x2 - selectionBox.x1)}
+                                height={Math.abs(selectionBox.y2 - selectionBox.y1)}
+                                fill="rgba(255, 107, 0, 0.1)"
+                                stroke="#FF6B00"
+                                strokeWidth={2}
+                                dash={[4, 4]}
+                                listening={false}
+                            />
+                        )}
+
+                        {/* Creating Shape Preview */}
+                        {creatingShape && (() => {
+                            const { type, x1, y1, x2, y2 } = creatingShape;
+                            const x = Math.min(x1, x2);
+                            const y = Math.min(y1, y2);
+                            const width = Math.abs(x2 - x1);
+                            const height = Math.abs(y2 - y1);
+
+                            if (type === 'rect' || type === 'text' || type === 'sticky') {
+                                return (
+                                    <Rect
+                                        x={x}
+                                        y={y}
+                                        width={width}
+                                        height={height}
+                                        fill="rgba(255, 107, 0, 0.05)"
+                                        stroke="#FF6B00"
+                                        strokeWidth={2}
+                                        dash={[8, 8]}
+                                        listening={false}
+                                    />
+                                );
+                            } else if (type === 'circle') {
+                                const radius = Math.min(width, height) / 2;
+                                return (
+                                    <Circle
+                                        x={x + radius}
+                                        y={y + radius}
+                                        radius={radius}
+                                        fill="rgba(255, 107, 0, 0.05)"
+                                        stroke="#FF6B00"
+                                        strokeWidth={2}
+                                        dash={[8, 8]}
+                                        listening={false}
+                                    />
+                                );
+                            }
+                            return null;
+                        })()}
+                    </Layer>
+
+                    {items.length === 0 && (
+                        <Layer>
+                            <Group>
+                                <Rect
+                                    x={stageSize.width / 2 - 200}
+                                    y={stageSize.height / 2 - 50}
+                                    width={400}
+                                    height={100}
+                                    fill="transparent"
+                                    listening={false}
+                                />
+                                <Text
+                                    x={stageSize.width / 2 - 300}
+                                    y={stageSize.height / 2 + 30}
+                                    width={600}
+                                    align="center"
+                                    text="Drag & Drop images or videos to start"
+                                    fontSize={24}
+                                    fill="#666"
+                                    listening={false}
+                                />
+                            </Group>
+                        </Layer>
+                    )}
+                </Stage>
+            </div>
         </div>
-    </div>
-);
+    );
 };
 
 export default InfiniteCanvas;
