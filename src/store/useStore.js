@@ -4,7 +4,7 @@ const MAX_HISTORY = 50;
 
 const useStore = create((set, get) => ({
   items: [],
-  selectedId: null,
+  selectedIds: [], // Multi-select support
   activeTool: 'pointer',
   scale: 1,
   position: { x: 0, y: 0 },
@@ -65,7 +65,7 @@ const useStore = create((set, get) => ({
     state.pushHistory();
     set({
       items: state.items.filter((item) => item.id !== id),
-      selectedId: state.selectedId === id ? null : state.selectedId
+      selectedIds: state.selectedIds.filter(sid => sid !== id)
     });
   },
 
@@ -94,10 +94,27 @@ const useStore = create((set, get) => ({
     }
   },
 
-  selectItem: (id) => set({ selectedId: id }),
+  selectItem: (id, shiftKey = false) => {
+    const state = get();
+    if (!id) {
+      set({ selectedIds: [] }); // Deselect all
+    } else if (shiftKey) {
+      // Toggle selection with Shift
+      const isSelected = state.selectedIds.includes(id);
+      set({
+        selectedIds: isSelected
+          ? state.selectedIds.filter(sid => sid !== id)
+          : [...state.selectedIds, id]
+      });
+    } else {
+      // Single selection
+      set({ selectedIds: [id] });
+    }
+  },
+
   setTool: (tool) => set({
     activeTool: tool,
-    selectedId: null
+    selectedIds: []
   }),
 
   setScale: (scale) => set({ scale }),
@@ -107,6 +124,12 @@ const useStore = create((set, get) => ({
 
   saveBoard: async () => {
     try {
+      // Prompt for filename
+      const defaultName = `infiniteboard-${new Date().toISOString().slice(0, 10)}`;
+      const filename = prompt('Enter filename:', defaultName);
+
+      if (!filename) return; // User cancelled
+
       const state = get();
       const data = {
         scale: state.scale,
@@ -121,6 +144,7 @@ const useStore = create((set, get) => ({
         const { writeTextFile } = await import('@tauri-apps/api/fs');
 
         const filePath = await save({
+          defaultPath: filename.endsWith('.json') ? filename : `${filename}.json`,
           filters: [{ name: 'InfiniteBoard', extensions: ['json'] }],
         });
 
@@ -135,7 +159,7 @@ const useStore = create((set, get) => ({
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `infiniteboard-${Date.now()}.json`;
+        a.download = filename.endsWith('.json') ? filename : `${filename}.json`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);

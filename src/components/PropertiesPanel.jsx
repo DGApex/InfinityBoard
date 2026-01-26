@@ -12,11 +12,12 @@ const COLORS = [
 ];
 
 const PropertiesPanel = () => {
-    const { items, selectedId, updateItem } = useStore();
+    const { items, updateItem, selectedIds } = useStore();
 
-    if (!selectedId) return null;
+    // For multi-select, show properties of first selected item
+    const selectedId = selectedIds[0] || null;
+    const selectedItem = items.find(item => item.id === selectedId);
 
-    const selectedItem = items.find((item) => item.id === selectedId);
     if (!selectedItem) return null;
 
     const handleColorChange = (color) => {

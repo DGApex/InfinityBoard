@@ -12,12 +12,14 @@ const InfiniteCanvas = () => {
         scale, position, setScale, setPosition,
         stageSize, setStageSize, setContentLayerRef,
         items, addItem, updateItem, removeItem, activeTool, setTool,
-        selectedId, selectItem, undo, redo
+        selectedIds, selectItem, undo, redo
     } = useStore();
 
     const [images, setImages] = useState({});
     const [editingItem, setEditingItem] = useState(null);
     const [textAreaPosition, setTextAreaPosition] = useState({ x: 0, y: 0 });
+    const [selectionBox, setSelectionBox] = useState(null); // { x1, y1, x2, y2 }
+    const [isPanning, setIsPanning] = useState(false);
 
     useEffect(() => {
         if (contentLayerRef.current) {
@@ -27,19 +29,25 @@ const InfiniteCanvas = () => {
 
     // Transformer Logic
     useEffect(() => {
-        if (selectedId && transformerRef.current) {
+        if (selectedIds.length > 0 && transformerRef.current) {
             const stage = transformerRef.current.getStage();
-            const selectedNode = stage.findOne('#' + selectedId);
-            if (selectedNode) {
-                transformerRef.current.nodes([selectedNode]);
-                transformerRef.current.getLayer().batchDraw();
+            if (!stage) return; // Safety check
+
+            const selectedNodes = selectedIds
+                .map(id => stage.findOne('#' + id))
+                .filter(node => node !== null);
+
+            if (selectedNodes.length > 0) {
+                transformerRef.current.nodes(selectedNodes);
+                const layer = transformerRef.current.getLayer();
+                if (layer) layer.batchDraw();
             } else {
                 transformerRef.current.nodes([]);
             }
         } else if (transformerRef.current) {
             transformerRef.current.nodes([]);
         }
-    }, [selectedId, items]);
+    }, [selectedIds, items]);
 
     // Keyboard shortcuts (Delete, Undo, Redo)
     useEffect(() => {
@@ -62,14 +70,29 @@ const InfiniteCanvas = () => {
                 return;
             }
 
-            // Delete selected item
-            if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId && !editingItem && !isTyping) {
-                removeItem(selectedId);
+            // Delete selected items
+            if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.length > 0 && !editingItem && !isTyping) {
+                selectedIds.forEach(id => removeItem(id));
+            }
+
+            // Arrow keys to move selected items
+            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && selectedIds.length > 0 && !isTyping) {
+                e.preventDefault();
+                const offset = e.shiftKey ? 10 : 1; // Shift for larger steps
+                const dx = e.key === 'ArrowLeft' ? -offset : e.key === 'ArrowRight' ? offset : 0;
+                const dy = e.key === 'ArrowUp' ? -offset : e.key === 'ArrowDown' ? offset : 0;
+
+                selectedIds.forEach(id => {
+                    const item = items.find(i => i.id === id);
+                    if (item) {
+                        updateItem(id, { x: item.x + dx, y: item.y + dy });
+                    }
+                });
             }
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [selectedId, removeItem, editingItem, undo, redo]);
+    }, [selectedIds, removeItem, editingItem, undo, redo, items, updateItem]);
 
     // Handle styling for inline text area
     useEffect(() => {
@@ -208,6 +231,30 @@ const InfiniteCanvas = () => {
         const files = Array.from(e.dataTransfer.files);
 
         files.forEach((file) => {
+            // Handle JSON files (board files)
+            if (file.type === 'application/json' || file.name.endsWith('.json')) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        const data = JSON.parse(event.target.result);
+                        // Load the board data using store actions
+                        if (data.scale) setScale(data.scale);
+                        if (data.position) setPosition(data.position);
+                        if (data.items) {
+                            // Clear current items and add loaded ones
+                            items.forEach(item => removeItem(item.id));
+                            data.items.forEach(item => addItem(item));
+                        }
+                        console.log('Board loaded successfully from JSON file!');
+                    } catch (error) {
+                        console.error('Failed to parse JSON:', error);
+                        alert('Invalid board file format: ' + error.message);
+                    }
+                };
+                reader.readAsText(file);
+                return;
+            }
+
             if (file.type.startsWith('image/')) {
                 const reader = new FileReader();
                 reader.onload = () => {
@@ -246,12 +293,92 @@ const InfiniteCanvas = () => {
     };
 
     // Tool Interaction
+    const handleStageMouseDown = (e) => {
+        const stage = stageRef.current;
+
+        // Right-click starts panning
+        if (e.evt.button === 2) {
+            setIsPanning(true);
+            return;
+        }
+
+        // Only handle left-click for selection
+        if (e.target === stage && activeTool === 'pointer' && e.evt.button === 0) {
+            selectItem(null); // Deselect all
+            setEditingItem(null);
+
+            // Start selection box
+            const pos = stage.getPointerPosition();
+            const point = {
+                x: (pos.x - stage.x()) / stage.scaleX(),
+                y: (pos.y - stage.y()) / stage.scaleY(),
+            };
+            setSelectionBox({ x1: point.x, y1: point.y, x2: point.x, y2: point.y });
+        }
+    };
+
+    const handleStageMouseMove = (e) => {
+        if (!selectionBox) return;
+
+        const stage = stageRef.current;
+        const pos = stage.getPointerPosition();
+        const point = {
+            x: (pos.x - stage.x()) / stage.scaleX(),
+            y: (pos.y - stage.y()) / stage.scaleY(),
+        };
+
+        setSelectionBox({
+            ...selectionBox,
+            x2: point.x,
+            y2: point.y,
+        });
+    };
+
+    const handleStageMouseUp = (e) => {
+        // Stop panning on right-click release
+        if (e.evt.button === 2) {
+            setIsPanning(false);
+            return;
+        }
+
+        if (!selectionBox) return;
+
+        // Find all items within selection box
+        const box = {
+            x: Math.min(selectionBox.x1, selectionBox.x2),
+            y: Math.min(selectionBox.y1, selectionBox.y2),
+            width: Math.abs(selectionBox.x2 - selectionBox.x1),
+            height: Math.abs(selectionBox.y2 - selectionBox.y1),
+        };
+
+        const selectedInBox = items.filter(item => {
+            const itemX = item.x;
+            const itemY = item.y;
+            const itemWidth = item.width || 100;
+            const itemHeight = item.height || 100;
+
+            // Check if item overlaps with selection box
+            return !(itemX > box.x + box.width ||
+                itemX + itemWidth < box.x ||
+                itemY > box.y + box.height ||
+                itemY + itemHeight < box.y);
+        });
+
+        if (selectedInBox.length > 0) {
+            selectItem(selectedInBox[0].id, false);
+            // Add rest with shift
+            selectedInBox.slice(1).forEach(item => selectItem(item.id, true));
+        }
+
+        setSelectionBox(null);
+    };
+
     const handleStageClick = (e) => {
         const stage = stageRef.current;
         if (e.target === stage) {
             if (activeTool === 'pointer') {
-                selectItem(null);
-                setEditingItem(null);
+                // Already handled in mousedown
+                return;
             }
 
             const pointer = stage.getPointerPosition();
@@ -382,12 +509,15 @@ const InfiniteCanvas = () => {
             scaleY: item.scaleY || 1,
             onClick: (e) => {
                 if (activeTool === 'pointer') {
-                    selectItem(item.id);
+                    selectItem(item.id, e.evt?.shiftKey || false);
                     e.cancelBubble = true;
                 }
             },
-            onTap: (e) => { if (activeTool === 'pointer') { selectItem(item.id); e.cancelBubble = true; } },
-            onDragStart: (e) => { selectItem(item.id); e.cancelBubble = true; },
+            onTap: (e) => { if (activeTool === 'pointer') { selectItem(item.id, e.evt?.shiftKey || false); e.cancelBubble = true; } },
+            onDragStart: (e) => {
+                if (!selectedIds.includes(item.id)) selectItem(item.id);
+                e.cancelBubble = true;
+            },
             onDragEnd: (e) => { updateItem(item.id, { x: e.target.x(), y: e.target.y() }); },
             onTransformEnd: (e) => {
                 const node = e.target;
@@ -570,14 +700,17 @@ const InfiniteCanvas = () => {
             })()}
 
             <Stage
-                // ...
                 width={stageSize.width}
                 height={stageSize.height}
                 onWheel={handleWheel}
-                draggable={activeTool === 'pointer' || activeTool === 'hand'}
+                draggable={isPanning}
                 onDragEnd={handleDragEnd}
+                onMouseDown={handleStageMouseDown}
+                onMouseMove={handleStageMouseMove}
+                onMouseUp={handleStageMouseUp}
                 onClick={handleStageClick}
                 onTap={handleStageClick}
+                onContextMenu={(e) => e.evt.preventDefault()} // Prevent context menu
                 scaleX={scale}
                 scaleY={scale}
                 x={position.x}
@@ -599,17 +732,31 @@ const InfiniteCanvas = () => {
                         borderDash={[4, 4]}
                     />
 
-                    {items.length === 0 && (
+                    {/* Selection Box Visual */}
+                    {selectionBox && (
+                        <Rect
+                            x={Math.min(selectionBox.x1, selectionBox.x2)}
+                            y={Math.min(selectionBox.y1, selectionBox.y2)}
+                            width={Math.abs(selectionBox.x2 - selectionBox.x1)}
+                            height={Math.abs(selectionBox.y2 - selectionBox.y1)}
+                            fill="rgba(255, 107, 0, 0.1)"
+                            stroke="#FF6B00"
+                            strokeWidth={2}
+                            dash={[4, 4]}
+                            listening={false}
+                        />
+                    )}
+                </Layer>
+
+                {items.length === 0 && (
+                    <Layer>
                         <Group>
-                            <Text
-                                x={stageSize.width / 2 - 300}
+                            <Rect
+                                x={stageSize.width / 2 - 200}
                                 y={stageSize.height / 2 - 50}
-                                width={600}
-                                align="center"
-                                text="Infinite Board"
-                                fontSize={64}
-                                fill="#333"
-                                fontStyle="bold"
+                                width={400}
+                                height={100}
+                                fill="transparent"
                                 listening={false}
                             />
                             <Text
@@ -623,10 +770,10 @@ const InfiniteCanvas = () => {
                                 listening={false}
                             />
                         </Group>
-                    )}
-                </Layer>
+                    </Layer>
+                )}
             </Stage>
-        </div>
+        </div >
     );
 };
 
