@@ -30,23 +30,29 @@ const InfiniteCanvas = () => {
 
     // Transformer Logic
     useEffect(() => {
-        if (selectedIds.length > 0 && transformerRef.current) {
-            const stage = transformerRef.current.getStage();
-            if (!stage) return; // Safety check
+        if (!transformerRef.current) return;
 
-            const selectedNodes = selectedIds
-                .map(id => stage.findOne('#' + id))
-                .filter(node => node !== null);
+        try {
+            if (selectedIds.length > 0) {
+                const stage = transformerRef.current.getStage();
+                if (!stage) return; // Safety check
 
-            if (selectedNodes.length > 0) {
-                transformerRef.current.nodes(selectedNodes);
-                const layer = transformerRef.current.getLayer();
-                if (layer) layer.batchDraw();
+                const selectedNodes = selectedIds
+                    .map(id => stage.findOne('#' + id))
+                    .filter(node => node !== null && node !== undefined);
+
+                if (selectedNodes.length > 0) {
+                    transformerRef.current.nodes(selectedNodes);
+                    const layer = transformerRef.current.getLayer();
+                    if (layer) layer.batchDraw();
+                } else {
+                    transformerRef.current.nodes([]);
+                }
             } else {
                 transformerRef.current.nodes([]);
             }
-        } else if (transformerRef.current) {
-            transformerRef.current.nodes([]);
+        } catch (error) {
+            console.warn('Transformer update skipped:', error);
         }
     }, [selectedIds, items]);
 
@@ -92,16 +98,16 @@ const InfiniteCanvas = () => {
             }
 
             // Spacebar for panning
-            if (e.key === ' ' && !isTyping && !isSpacePressed) {
+            if (e.code === 'Space' && !isTyping && !isSpacePressed) {
                 setIsSpacePressed(true);
                 e.preventDefault();
             }
         };
 
         const handleKeyUp = (e) => {
-            if (e.key === ' ') {
+            if (e.code === 'Space') {
                 setIsSpacePressed(false);
-                setIsPanning(false);
+                setIsPanning(false); // Stop panning when space is released
             }
         };
 
@@ -718,82 +724,88 @@ const InfiniteCanvas = () => {
                 );
             })()}
 
-            <Stage
-                width={stageSize.width}
-                height={stageSize.height}
-                onWheel={handleWheel}
-                draggable={isPanning}
-                onDragEnd={handleDragEnd}
-                onMouseDown={handleStageMouseDown}
-                onMouseMove={handleStageMouseMove}
-                onMouseUp={handleStageMouseUp}
-                onClick={handleStageClick}
-                onTap={handleStageClick}
-                onContextMenu={(e) => e.evt.preventDefault()} // Prevent context menu
-                scaleX={scale}
-                scaleY={scale}
-                x={position.x}
-                y={position.y}
-                ref={stageRef}
+            <div
+                className="w-full h-screen"
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
+                style={{ cursor: isSpacePressed ? 'grab' : isPanning ? 'grabbing' : 'default' }}
             >
-                <Layer>
-                    <Grid />
-                </Layer>
-
-                <Layer ref={contentLayerRef}>
-                    {items.map(renderItem)}
-                    <Transformer
-                        ref={transformerRef}
-                        borderStroke="#FF6B00"
-                        anchorStroke="#FF6B00"
-                        anchorFill="#18181b"
-                        anchorSize={10}
-                        borderDash={[4, 4]}
-                    />
-
-                    {/* Selection Box Visual */}
-                    {selectionBox && (
-                        <Rect
-                            x={Math.min(selectionBox.x1, selectionBox.x2)}
-                            y={Math.min(selectionBox.y1, selectionBox.y2)}
-                            width={Math.abs(selectionBox.x2 - selectionBox.x1)}
-                            height={Math.abs(selectionBox.y2 - selectionBox.y1)}
-                            fill="rgba(255, 107, 0, 0.1)"
-                            stroke="#FF6B00"
-                            strokeWidth={2}
-                            dash={[4, 4]}
-                            listening={false}
-                        />
-                    )}
-                </Layer>
-
-                {items.length === 0 && (
+                <Stage
+                    width={stageSize.width}
+                    height={stageSize.height}
+                    onWheel={handleWheel}
+                    draggable={isPanning}
+                    onDragEnd={handleDragEnd}
+                    onMouseDown={handleStageMouseDown}
+                    onMouseMove={handleStageMouseMove}
+                    onMouseUp={handleStageMouseUp}
+                    onClick={handleStageClick}
+                    onTap={handleStageClick}
+                    onContextMenu={(e) => e.evt.preventDefault()} // Prevent context menu
+                    scaleX={scale}
+                    scaleY={scale}
+                    x={position.x}
+                    y={position.y}
+                    ref={stageRef}
+                >
                     <Layer>
-                        <Group>
-                            <Rect
-                                x={stageSize.width / 2 - 200}
-                                y={stageSize.height / 2 - 50}
-                                width={400}
-                                height={100}
-                                fill="transparent"
-                                listening={false}
-                            />
-                            <Text
-                                x={stageSize.width / 2 - 300}
-                                y={stageSize.height / 2 + 30}
-                                width={600}
-                                align="center"
-                                text="Drag & Drop images or videos to start"
-                                fontSize={24}
-                                fill="#666"
-                                listening={false}
-                            />
-                        </Group>
+                        <Grid />
                     </Layer>
-                )}
-            </Stage>
-        </div >
-    );
+
+                    <Layer ref={contentLayerRef}>
+                        {items.map(renderItem)}
+                        <Transformer
+                            ref={transformerRef}
+                            borderStroke="#FF6B00"
+                            anchorStroke="#FF6B00"
+                            anchorFill="#18181b"
+                            anchorSize={10}
+                            borderDash={[4, 4]}
+                        />
+
+                        {/* Selection Box Visual */}
+                        {selectionBox && (
+                            <Rect
+                                x={Math.min(selectionBox.x1, selectionBox.x2)}
+                                y={Math.min(selectionBox.y1, selectionBox.y2)}
+                                width={Math.abs(selectionBox.x2 - selectionBox.x1)}
+                                height={Math.abs(selectionBox.y2 - selectionBox.y1)}
+                                fill="rgba(255, 107, 0, 0.1)"
+                                stroke="#FF6B00"
+                                strokeWidth={2}
+                                dash={[4, 4]}
+                                listening={false}
+                            />
+                        )}
+                    </Layer>
+
+                    {items.length === 0 && (
+                        <Layer>
+                            <Group>
+                                <Rect
+                                    x={stageSize.width / 2 - 200}
+                                    y={stageSize.height / 2 - 50}
+                                    width={400}
+                                    height={100}
+                                    fill="transparent"
+                                    listening={false}
+                                />
+                                <Text
+                                    x={stageSize.width / 2 - 300}
+                                    y={stageSize.height / 2 + 30}
+                                    width={600}
+                                    align="center"
+                                    text="Drag & Drop images or videos to start"
+                                    fontSize={24}
+                                    fill="#666"
+                                    listening={false}
+                                />
+                            </Group>
+                        </Layer>
+                    )}
+                </Stage>
+            </div >
+            );
 };
 
-export default InfiniteCanvas;
+            export default InfiniteCanvas;
