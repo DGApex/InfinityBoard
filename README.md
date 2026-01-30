@@ -59,18 +59,10 @@ Combine these skills for maximum control:
 | :--- | :--- |
 | `Space` + Drag | Pan Canvas |
 | `Wheel` | Zoom In/Out |
-| `V` | Pointer Tool |
-| `T` | Text Tool |
-| `R` | Rectangle Tool |
-| `C` | Circle Tool |
-| `P` | Pen Tool |
-| `S` | Sticky Note |
 | `Del` | Delete Selection |
 | `Ctrl + Z` | Undo |
-| `Ctrl + Y` | Redo |
-| `Ctrl + S` | Save Board |
+| `Ctrl + Shift + Z` | Redo |
 | `Ctrl + G` | Group Selection |
-| `Ctrl + U` | Ungroup Selection |
 
 ## 📦 Installation
 
