@@ -103,4 +103,4 @@ The output files will be located in:
 
 ## 📄 License
 
-This project is proprietary.
+This project is free to use in ant scenario, happy to recive opinions and do whatever you like!
