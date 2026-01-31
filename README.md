@@ -2,8 +2,6 @@
 
 **InfiniteBoard** is a next-generation visual collaboration tool powered by AI. It combines the flexibility of an infinite canvas with advanced Generative AI capabilities, allowing you to brainstorm, design, and create moodboards with unprecedented speed.
 
-![InfiniteBoard Banner](https://via.placeholder.com/1200x600?text=InfiniteBoard+Preview)
-
 ## ✨ Key Features
 
 ### 🎨 Infinite Canvas
