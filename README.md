@@ -63,6 +63,16 @@ Combine these skills for maximum control:
 | `Ctrl + Z` | Undo |
 | `Ctrl + Shift + Z` | Redo |
 | `Ctrl + G` | Group Selection |
+| `Ctrl + Shift + G` | Ungroup Selection |
+| `V` | Pointer Tool |
+| `T` | Text Tool |
+| `S` | Sticky Note |
+| `R` | Rectangle |
+| `C` | Circle |
+| `P` | Pen Tool |
+| `L` | Line Tool |
+| `A` | Arrow Tool |
+| `G` | Toggle Panel Creator |
 
 ## 📦 Installation
 

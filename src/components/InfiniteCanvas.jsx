@@ -329,6 +329,28 @@ const InfiniteCanvas = () => {
                 return;
             }
 
+            // =========================================================================
+            // Tool Shortcuts (only if not typing and not holding Ctrl/Alt)
+            // =========================================================================
+            if (!isTyping && !e.ctrlKey && !e.altKey && !e.metaKey) {
+                const key = e.key.toLowerCase();
+
+                switch (key) {
+                    case 'v': setTool('pointer'); break;
+                    case 't': setTool('text'); break;
+                    case 's': setTool('sticky'); break;
+                    case 'r': setTool('rect'); break;
+                    case 'c': setTool('circle'); break;
+                    case 'p': setTool('pen'); break;
+                    case 'l': setTool('line'); break;
+                    case 'a': setTool('arrow'); break;
+                    case 'g':
+                        // Toggle Panel Creator
+                        setPanelCreatorOpen(!useStore.getState().panelCreatorOpen);
+                        break;
+                }
+            }
+
             // Delete selected items
             if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.length > 0 && !editingItem && !isTyping) {
                 selectedIds.forEach(id => removeItem(id));
@@ -438,6 +460,68 @@ const InfiniteCanvas = () => {
             }
         });
     }, [items]);
+
+    // Handle Paste Event
+    useEffect(() => {
+        const handlePaste = (e) => {
+            // Prevent default behavior if needed, generally good for canvas apps
+            // but might block input fields. Check active element.
+            if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') {
+                return;
+            }
+
+            const items = e.clipboardData.items;
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].type.indexOf('image') !== -1) {
+                    e.preventDefault();
+                    const blob = items[i].getAsFile();
+                    const img = new window.Image();
+                    const url = URL.createObjectURL(blob);
+
+                    img.src = url;
+                    img.onload = () => {
+                        const stage = stageRef.current;
+                        let x = 0;
+                        let y = 0;
+
+                        if (stage) {
+                            // Paste at center of viewport
+                            const stageScale = stage.scaleX();
+                            const stagePos = stage.position();
+                            const container = containerRef.current;
+
+                            if (container) {
+                                const rect = container.getBoundingClientRect();
+                                const viewportCenterX = rect.width / 2;
+                                const viewportCenterY = rect.height / 2;
+
+                                x = (viewportCenterX - stagePos.x) / stageScale;
+                                y = (viewportCenterY - stagePos.y) / stageScale;
+                            } else {
+                                x = (-stagePos.x + 100) / stageScale;
+                                y = (-stagePos.y + 100) / stageScale;
+                            }
+                        }
+
+                        addItem({
+                            id: uuidv4(),
+                            type: 'image',
+                            x: x - (img.width > 500 ? 250 : img.width / 2), // Center the image point
+                            y: y - (img.height * (img.width > 500 ? 500 / img.width : 1)) / 2,
+                            content: url, // Use blob URL
+                            width: img.width > 500 ? 500 : img.width,
+                            height: (img.width > 500 ? 500 : img.width) * (img.height / img.width),
+                        });
+                    };
+                }
+            }
+        };
+
+        window.addEventListener('paste', handlePaste);
+        return () => {
+            window.removeEventListener('paste', handlePaste);
+        };
+    }, [addItem]);
 
     // File Drag & Drop Handlers (HTML5 - only for browser, not Tauri)
     const handleDragOver = (e) => {
@@ -1628,7 +1712,7 @@ const InfiniteCanvas = () => {
                                     y={stageSize.height / 2 + 30}
                                     width={600}
                                     align="center"
-                                    text="Drag & Drop images or videos to start"
+                                    text="Drag & Drop images to start"
                                     fontSize={24}
                                     fill="#666"
                                     listening={false}

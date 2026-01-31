@@ -8,8 +8,13 @@ const getApiKey = async () => {
 
     try {
         // 2. Fallback: Check local .env in the same directory (relative)
-        // Note: In production or shared envs, rely on LocalStorage or Environment Variables
-        // Removing hardcoded absolute path for security
+        const envPath = 'C:\\Users\\Usuario\\Documents\\Apps\\InfinityBoard\\Skills\\board-generator\\scripts\\.env';
+        const contents = await readTextFile(envPath);
+        const match = contents.match(/GOOGLE_API_KEY=(.*)/);
+        if (match && match[1]) {
+            console.log("API Key loaded from .env");
+            return match[1].trim();
+        }
     } catch (e) {
         console.warn("Could not read API Key from .env file:", e);
     }
@@ -17,28 +22,12 @@ const getApiKey = async () => {
 };
 
 /**
- * Generic helper to call Gemini 1.5 Flash
+ * Generic helper to call Gemini Text Models (Gemini 3 Flash Preview)
  */
-const callGeminiFlash = async (systemInstruction, userPrompt, imageBase64 = null, apiKey) => {
-    // Using the model ID found in the user's environment list
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+const callGeminiText = async (userId, systemInstruction, userPrompt, apiKey) => {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
 
     const parts = [{ text: userPrompt }];
-
-    if (imageBase64) {
-        // Extract correct mime type
-        const mimeMatch = imageBase64.match(/^data:(image\/\w+);base64,/);
-        const mimeType = mimeMatch ? mimeMatch[1] : "image/png";
-
-        const cleanBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, "");
-
-        parts.push({
-            inline_data: {
-                mime_type: mimeType,
-                data: cleanBase64
-            }
-        });
-    }
 
     const requestBody = {
         contents: [{ parts }],
@@ -55,7 +44,7 @@ const callGeminiFlash = async (systemInstruction, userPrompt, imageBase64 = null
 
     if (!response.ok) {
         const txt = await response.text();
-        throw new Error(`Gemini Flash Error: ${txt}`);
+        throw new Error(`Gemini Text Error: ${txt}`);
     }
 
     const data = await response.json();
@@ -63,7 +52,7 @@ const callGeminiFlash = async (systemInstruction, userPrompt, imageBase64 = null
 };
 
 /**
- * Uses Gemini 1.5 Flash to enhance a prompt
+ * Uses Gemini 3 Flash Preview to enhance a prompt
  */
 export const enhancePrompt = async (currentPrompt) => {
     const apiKey = await getApiKey();
@@ -72,7 +61,7 @@ export const enhancePrompt = async (currentPrompt) => {
     const systemPrompt = "You are an expert Prompt Engineer for AI Image Generators. Rewrite the user's prompt to be more descriptive, artistic, and detailed. Focus on lighting, texture, mood, and composition. Keep it under 40 words. Output ONLY the optimized prompt.";
 
     try {
-        const enhanced = await callGeminiFlash(systemPrompt, currentPrompt, null, apiKey);
+        const enhanced = await callGeminiText("user", systemPrompt, currentPrompt, apiKey);
         return enhanced.trim();
     } catch (e) {
         console.error("Enhance failed:", e);
@@ -81,26 +70,7 @@ export const enhancePrompt = async (currentPrompt) => {
 };
 
 /**
- * Vision Bridge: Describes an image for Imagen
- */
-const describeImageWithGemini = async (base64Image, apiKey) => {
-    try {
-        console.log("Bridging Vision: Analyzing reference image with Gemini 1.5 Flash...");
-        const systemPrompt = "Describe the artistic style, color palette, composition, and key elements of this image in detail. This description will be used to generate a similar image.";
-        const description = await callGeminiFlash(systemPrompt, "Describe this image", base64Image, apiKey);
-
-        if (description) {
-            console.log("Vision Description obtained:", description.substring(0, 50) + "...");
-            return description;
-        }
-    } catch (e) {
-        console.warn("Vision Bridge failed, ignoring reference:", e);
-    }
-    return "";
-};
-
-/**
- * Generates an image using Imagen 4.0 Fast (Vertex/Generative Language API)
+ * Generates an image using Gemini Models (2.5 Flash Image OR 3 Pro Image Preview)
  */
 export const generatePanelImage = async (prompt, referenceBase64 = null, aspectRatio = "1:1") => {
     console.log(`Starting Generation. Prompt: "${prompt}", AR: ${aspectRatio}`);
@@ -110,34 +80,60 @@ export const generatePanelImage = async (prompt, referenceBase64 = null, aspectR
         throw new Error("API Key not found in Skills/board-generator/scripts/.env");
     }
 
-    let finalPrompt = prompt;
+    let modelName = 'gemini-2.5-flash-image';
+    let payloadContents = [];
 
-    // VISION BRIDGE LOGIC
-    if (referenceBase64) {
-        const visualDescription = await describeImageWithGemini(referenceBase64, apiKey);
-        if (visualDescription) {
-            finalPrompt = `${prompt}. (Style Reference: ${visualDescription})`;
-        }
-    }
-
-    // Using Verified Imagen 4.0 Fast endpoint
-    const modelName = 'imagen-4.0-fast-generate-001';
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:predict?key=${apiKey}`;
-
-    const requestBody = {
-        instances: [
-            {
-                prompt: finalPrompt
-            }
-        ],
-        parameters: {
-            sampleCount: 1,
+    // Base/Default Config
+    // Use TEXT, IMAGE for robust multimodel support as per user snippet
+    let generationConfig = {
+        responseModalities: ["TEXT", "IMAGE"],
+        imageConfig: {
             aspectRatio: aspectRatio
         }
     };
 
+    if (referenceBase64) {
+        // WITH REFERENCE: Use Gemini 3 Pro Image Preview
+        modelName = 'gemini-3-pro-image-preview';
+        console.log("Using Gemini 3 Pro Image Preview (Reference Mode)");
+
+        const mimeMatch = referenceBase64.match(/^data:(image\/\w+);base64,/);
+        const mimeType = mimeMatch ? mimeMatch[1] : "image/png";
+        const cleanBase64 = referenceBase64.replace(/^data:image\/\w+;base64,/, "");
+
+        payloadContents = [{
+            parts: [
+                { text: `Generate an image based on this prompt: ${prompt}. Maintain the style of the provided reference image.` },
+                {
+                    inline_data: {
+                        mime_type: mimeType,
+                        data: cleanBase64
+                    }
+                }
+            ]
+        }];
+
+        // Config already set, but confirm it applies here
+
+    } else {
+        // NO REFERENCE: Use Gemini 2.5 Flash Image
+        console.log("Using Gemini 2.5 Flash Image (Base Mode)");
+        payloadContents = [{
+            parts: [{ text: prompt }]
+        }];
+
+        // Base mode also uses the same generationConfig with AR
+    }
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+
+    const requestBody = {
+        contents: payloadContents,
+        generationConfig: generationConfig
+    };
+
     try {
-        console.log("Sending request to Imagen 4.0 Fast...", JSON.stringify(requestBody.parameters));
+        console.log("Sending Request Body:", JSON.stringify(requestBody));
 
         const response = await fetch(url, {
             method: 'POST',
@@ -149,28 +145,32 @@ export const generatePanelImage = async (prompt, referenceBase64 = null, aspectR
 
         if (!response.ok) {
             const err = await response.text();
-            throw new Error(`Imagen API Error (${response.status}): ${err}`);
+            throw new Error(`Gemini Image API Error (${response.status}): ${err}`);
         }
 
         const data = await response.json();
 
-        const prediction = data.predictions?.[0];
+        // Parse Gemini Response for Image
+        // Robust checking for inlineData (CamelCase) or inline_data (SnakeCase)
+        const parts = data.candidates?.[0]?.content?.parts;
+        if (!parts) throw new Error("No content parts in response");
 
-        if (!prediction) {
-            throw new Error("No prediction found in response");
+        let base64Data = null;
+        for (const part of parts) {
+            // Check CamelCase (REST) first, then SnakeCase
+            if (part.inlineData && part.inlineData.data) {
+                base64Data = part.inlineData.data;
+                break;
+            }
+            if (part.inline_data && part.inline_data.data) {
+                base64Data = part.inline_data.data;
+                break;
+            }
         }
 
-        let base64Data = "";
-
-        if (typeof prediction === 'string') {
-            base64Data = prediction;
-        } else if (prediction.bytesBase64Encoded) {
-            base64Data = prediction.bytesBase64Encoded;
-        } else if (prediction.bytes) {
-            base64Data = prediction.bytes;
-        } else {
-            console.warn("Unknown prediction format, attempting JSON stringify:", prediction);
-            throw new Error("Unknown image format in response");
+        if (!base64Data) {
+            console.warn("Full Response:", JSON.stringify(data));
+            throw new Error("No image data found in generation response.");
         }
 
         return base64Data;

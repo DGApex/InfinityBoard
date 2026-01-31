@@ -11,6 +11,6 @@
   "license": "ISC",
   "type": "module",
   "dependencies": {
-    "@google/genai": "^1.38.0"
+    "@google/genai": "^1.39.0"
   }
 }

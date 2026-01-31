@@ -67,31 +67,31 @@ const Toolbar = () => {
                 <div className="flex flex-col gap-2 border-b border-zinc-700/50 pb-2 mb-2">
                     <ToolButton
                         onClick={() => setTool('pointer')}
-                        title="Select / Move"
+                        title="Select / Move (V)"
                         icon={<MousePointer2 size={20} />}
                         isActive={activeTool === 'pointer'}
                     />
                     <ToolButton
                         onClick={() => setTool('text')}
-                        title="Text Tool"
+                        title="Text Tool (T)"
                         icon={<Type size={20} />}
                         isActive={activeTool === 'text'}
                     />
                     <ToolButton
                         onClick={() => setTool('sticky')}
-                        title="Sticky Note"
+                        title="Sticky Note (S)"
                         icon={<StickyNote size={20} />}
                         isActive={activeTool === 'sticky'}
                     />
                     <ToolButton
                         onClick={() => setTool('rect')}
-                        title="Rectangle"
+                        title="Rectangle (R)"
                         icon={<Square size={20} />}
                         isActive={activeTool === 'rect'}
                     />
                     <ToolButton
                         onClick={() => setTool('circle')}
-                        title="Circle"
+                        title="Circle (C)"
                         icon={<Circle size={20} />}
                         isActive={activeTool === 'circle'}
                     />
@@ -101,19 +101,19 @@ const Toolbar = () => {
                 <div className="flex flex-col gap-2 border-b border-zinc-700/50 pb-2 mb-2">
                     <ToolButton
                         onClick={() => setTool('pen')}
-                        title="Pen / Brush"
+                        title="Pen / Brush (P)"
                         icon={<Pencil size={20} />}
                         isActive={activeTool === 'pen'}
                     />
                     <ToolButton
                         onClick={() => setTool('line')}
-                        title="Line"
+                        title="Line (L)"
                         icon={<Minus size={20} />}
                         isActive={activeTool === 'line'}
                     />
                     <ToolButton
                         onClick={() => setTool('arrow')}
-                        title="Arrow"
+                        title="Arrow (A)"
                         icon={<ArrowRight size={20} />}
                         isActive={activeTool === 'arrow'}
                     />
@@ -184,7 +184,7 @@ const Toolbar = () => {
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                         onClick={() => setPanelCreatorOpen(!panelCreatorOpen)}
-                        title="Panel Creator (AI)"
+                        title="Panel Creator (AI) (G)"
                         className={`
                             p-2.5 rounded-lg transition-all duration-200 
                             ${panelCreatorOpen
